@@ -50,7 +50,6 @@ def fetch():
 				msg = 'Failed to find torrent for item ' + item['title'] + ' ' + item['episode']
 				query = "INSERT INTO `system_messages` VALUES (NULL, '%d', '%s', '0', '%d', '%d', NULL);"
 				exec_query = query % (config['userid'], msg, config['severity'], int(time()))
-				print exec_query
 				cursor.execute(exec_query)
 				db.commit()
 
