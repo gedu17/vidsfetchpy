@@ -1,0 +1,15 @@
+{
+    "resource": "http://on-my.tv/",
+    "dbhost": "localhost",
+    "dbuser": "db",
+    "dbpass": "db",
+    "dbtable": "db",
+    "qualities": ["720p", "HDTV", "1080p"],
+    "minseeders": 10,
+    "torquery": "https://thepiratebay.org/search/%s/0/7/0",
+    "userid": 1,
+    "severity": 3,
+    "cookie": "cookie",
+    "notify": 1
+
+}
