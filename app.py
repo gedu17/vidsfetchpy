@@ -34,7 +34,7 @@ def fetch():
 		torrent = get_torrent(item)
 
 		if torrent is not None:
-			subprocess.call(['transmission-remote', '-a', torrent['magnet']]) 
+			subprocess.call(['transmission-remote', '-a', torrent['magnet'], '-n', '%s:%s' % (config['truser'], config['trpass'])]) 
 			if config['notify'] == 1:
 				msg = 'Downloading item ' + torrent['title'] + ' ' + torrent['episode']
 				long_msg_template = '<div><h4>Downloading item %s %s</h4><ul class="list-group">'

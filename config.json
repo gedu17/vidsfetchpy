@@ -10,6 +10,8 @@
     "userid": 1,
     "severity": 3,
     "cookie": "cookie",
-    "notify": 1
+    "notify": 1,
+    "truser": "transmission",
+    "trpass": "transmission"
 
 }
