@@ -1,6 +1,6 @@
 import urllib2, sys, subprocess, MySQLdb, json
 from bs4 import BeautifulSoup
-from time import time
+import time
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -11,47 +11,52 @@ with open('config.json', 'r') as f:
 qualities = config['qualities']
 resource = config['resource']
 minimum_seeders = config['minseeders']
-db = MySQLdb.connect(host=config['dbhost'], user=config['dbuser'], passwd=config['dbpass'], db=config['dbtable'])
+db = None
+if config['notify'] > 0:
+    db = MySQLdb.connect(host=config['dbhost'], user=config['dbuser'], passwd=config['dbpass'], db=config['dbtable'])
 
 def fetch():
+    with open('cron.log', 'a') as log:
+        log.write('%s: Starting job...\n' % time.strftime('%Y-%m-%d %H:%M:%S'))
+        opener = urllib2.build_opener()
+        opener.addheaders.append(('Cookie', config['cookie']))
+        request = opener.open(resource)
+        html = request.read()
+        soup = BeautifulSoup(html, 'html.parser')
+        data = soup.find('div', {'id': 'caltoday'})
+        series = []
+        for div in data.find_all('div', {'class': 'span12'}):
+            serie = div.find('a', {'class': 'eplink'}).contents
+            metadata = div.find('span', {'class': 'seasep'}).contents
+            series.append({'title': serie[0].encode('utf-8'), 'episode': metadata[0][:-1]})
+            log.write('%s: Found series %s %s\n' % (time.strftime('%Y-%m-%d %H:%M:%S'), serie[0].encode('utf-8'), metadata[0][:-1]))
 
-	opener = urllib2.build_opener()
-	opener.addheaders.append(('Cookie', config['cookie']))
-	request = opener.open(resource)
-	html = request.read()
-	soup = BeautifulSoup(html, 'html.parser')
-	data = soup.find('div', {'id': 'caltoday'})
-	series = []
-	for div in data.find_all('div', {'class': 'span12'}):
-		serie = div.find('a', {'class': 'eplink'}).contents
-		metadata = div.find('span', {'class': 'seasep'}).contents
-		series.append({'title': serie[0].encode('utf-8'), 'episode': metadata[0][:-1]})
+        if config['notify'] > 0:
+            cursor = db.cursor()
 
-	
-	cursor = db.cursor()
-
-	for item in series:
-		torrent = get_torrent(item)
-
-		if torrent is not None:
-			subprocess.call(['transmission-remote', '-a', torrent['magnet'], '-n', '%s:%s' % (config['truser'], config['trpass'])]) 
-			if config['notify'] == 1:
-				msg = 'Downloading item ' + torrent['title'] + ' ' + torrent['episode']
-				long_msg_template = '<div><h4>Downloading item %s %s</h4><ul class="list-group">'
-				long_msg_template += '<li class="list-group-item" style="padding-left: 10px;">'
-				long_msg_template += '%s - %s<br />Seeders: %d ; Leechers %d;</li></ul></div>'
-				long_msg = long_msg_template % (torrent['title'], torrent['episode'], torrent['torrent_title'], torrent['size'], torrent['seeders'], torrent['leechers'])
-				query = "INSERT INTO `system_messages` VALUES (NULL, '%d', '%s', '0', '%d', '%d', '%s');"
-				exec_query = query % (config['userid'], msg, config['severity'], int(time()), long_msg)
-				cursor.execute(exec_query)
-				db.commit()
-		else:
-			if config['notify'] == 1:
-				msg = 'Failed to find torrent for item ' + item['title'] + ' ' + item['episode']
-				query = "INSERT INTO `system_messages` VALUES (NULL, '%d', '%s', '0', '%d', '%d', NULL);"
-				exec_query = query % (config['userid'], msg, config['severity'], int(time()))
-				cursor.execute(exec_query)
-				db.commit()
+        for item in series:
+            torrent = get_torrent(item)
+            
+            if torrent is not None:
+                log.write('%s: Torrent for %s %s is %s (%s)\n' % (time.strftime('%Y-%m-%d %H:%M:%S'), torrent['title'], torrent['episode'], torrent['torrent_title'], torrent['size']))
+                subprocess.call(['transmission-remote', '-a', torrent['magnet'], '-n', '%s:%s' % (config['truser'], config['trpass'])]) 
+                if config['notify'] > 0:
+                    msg = 'Downloading item ' + torrent['title'] + ' ' + torrent['episode']
+                    long_msg_template = '<div><h4>Downloading item %s %s</h4><ul class="list-group">'
+                    long_msg_template += '<li class="list-group-item" style="padding-left: 10px;">'
+                    long_msg_template += '%s - %s<br />Seeders: %d ; Leechers %d;</li></ul></div>'
+                    long_msg = long_msg_template % (torrent['title'], torrent['episode'], torrent['torrent_title'], torrent['size'], torrent['seeders'], torrent['leechers'])
+                    query = "INSERT INTO `system_messages` VALUES (NULL, '%d', '%s', '0', '%d', '%d', '%s');"
+                    exec_query = query % (config['userid'], msg, config['severity'], int(time.time()), long_msg)
+                    cursor.execute(exec_query)
+                    db.commit()
+            else:
+                if config['notify'] > 0:
+                    msg = 'Failed to find torrent for item ' + item['title'] + ' ' + item['episode']
+                    query = "INSERT INTO `system_messages` VALUES (NULL, '%d', '%s', '0', '%d', '%d', NULL);"
+                    exec_query = query % (config['userid'], msg, config['severity'], int(time.time()))
+                    cursor.execute(exec_query)
+                    db.commit()
 
 def get_torrent(item):
 	query = urllib2.quote(item['title']) + '.' + item['episode']
